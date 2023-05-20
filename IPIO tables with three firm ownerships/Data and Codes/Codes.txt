@@ -1,0 +1,339 @@
+﻿%IPIO_DHF Compilation
+
+%Program begins
+
+n=42;%number of industries for each province
+p=31;%number of provinces
+
+%read data_IPIO
+D=xlsread('IPIO.csv');
+[n1,m1]=size(D);
+x=D(1:n*p,m1);
+e=D(1:n*p,m1-2);
+
+%read data_economic cencus
+C=xlsread('census.csv');
+C(isnan(C))=0;
+S=C(:,12:14);
+[n3,m3]=size(S);
+for i=1:n3;
+for j=1:m3;
+if S(i,j)<0;
+S(i,j)=0;
+end;
+end;
+end;
+xd=x.*(1-(S(:,2)+S(:,3)));%gross output_D
+xhm=x.*S(:,2);%gross output_H
+xr=x.*S(:,3);%gross output_F
+
+sd=C(:,26);%export share_D
+shm=C(:,27);%export share_H
+sr=C(:,28);%export share_F
+ed=e.*sd;%export_D
+ehm=e.*shm;%export_H
+er=e.*sr;%%export_F
+
+%test export<gross output
+test_d=xd-ed;
+test_hm=xhm-ehm;
+test_r=xr-er;
+for i=1:n3;
+if test_hm(i)<0;
+ehm(i)=xhm(i);
+end;
+if test_r(i)<0;
+er(i)=xr(i);
+end;
+ed=e-ehm-er;
+end;
+
+DS_d=xd-ed;%domestic supply_D
+DS_hm=xhm-ehm;%domestic supply_H
+DS_r=xr-er;%domestic supply_F
+DS=DS_d+DS_hm+DS_r;
+SDS_d=DS_d./DS;
+SDS_hm=DS_hm./DS;
+SDS_r=DS_r./DS;
+SDS=[SDS_d,SDS_hm,SDS_r];
+SDS(isnan(SDS))=0;
+
+[n4,m4]=size(SDS);
+for i=1:n4;
+for j=1:m4;
+if SDS(i,j)<0;
+SDS(i,j)=0;
+end;
+end;
+end;
+SDS(:,1)=1-SDS(:,2)-SDS(:,3);%dometic supply shares sum to 1
+
+V_sum=D(n1-1,1:n*p);
+SVS=C(:,68:70)';
+for i=1:n3;
+if SVS(2,i)<0;
+SVS(2,i)=0;
+end;
+if SVS(3,i)<0;
+SVS(3,i)=0;
+end;
+end;
+SVS(1,:)=1-SVS(2,:)-SVS(3,:);
+
+V_sum_d=D(n1-1,1:n*p).*SVS(1,:);%total value-added_D
+V_sum_hm=D(n1-1,1:n*p).*SVS(2,:);%total value-added_H
+V_sum_r=D(n1-1,1:n*p).*SVS(3,:);%total value-added_F
+
+SLa=C(:,40:42)';%labor compensation share_D
+SLa(1,:)=1-SLa(2,:)-SLa(3,:);
+%using value-added share for missing data
+for i=1:n3;
+if SLa(1,i)==1;
+SLa(:,i)=SVS(:,i);
+end;
+end;
+STa=C(:,54:56)';%net production tax share_D
+STa(1,:)=1-STa(2,:)-STa(3,:);
+%using value-added share for missing data
+for i=1:n3;
+if STa(1,i)==1;
+STa(:,i)=SVS(:,i);
+end;
+end;
+SDe=C(:,47:49)';%fixed asset depreciation share_D
+SDe(1,:)=1-SDe(2,:)-SDe(3,:);
+%using value-added share for missing data
+for i=1:n3;
+if SDe(1,i)==1;
+SDe(:,i)=SVS(:,i);
+end;
+end;
+SOp=C(:,61:63)';%operating surplus share_D
+SOp(1,:)=1-SOp(2,:)-SOp(3,:);
+%using value-added share for missing data
+for i=1:n3;
+if SOp(1,i)==1;
+SOp(:,i)=SVS(:,i);
+end;
+end;
+
+%using gross output share for negative labor compensation and fixed asset depreciation 
+[n6,m6]=size(SLa);
+SS=S';
+for j=1:m6;
+if min(SLa(:,j))<0 || min(SDe(:,j))<0;
+SLa(:,j)=SS(:,j);
+STa(:,j)=SS(:,j);
+SDe(:,j)=SS(:,j);
+SOp(:,j)=SS(:,j);
+end;
+end;
+
+V=D(n1-5:n1-2,1:n*p);
+La_d=SLa(1,:).*V(1,:);
+La_hm=SLa(2,:).*V(1,:);
+La_r=SLa(3,:).*V(1,:);
+Ta_d=STa(1,:).*V(2,:);
+Ta_hm=STa(2,:).*V(2,:);
+Ta_r=STa(3,:).*V(2,:);
+De_d=SDe(1,:).*V(3,:);
+De_hm=SDe(2,:).*V(3,:);
+De_r=SDe(3,:).*V(3,:);
+Op_d=SOp(1,:).*V(4,:);
+Op_hm=SOp(2,:).*V(4,:);
+Op_r=SOp(3,:).*V(4,:);
+V_d=[La_d;Ta_d;De_d;Op_d];%value-added by subcategories_D
+V_hm=[La_hm;Ta_hm;De_hm;Op_hm];%value-added by subcategories_H
+V_r=[La_r;Ta_r;De_r;Op_r];%value-added by subcategories_F
+
+test_vd=xd'-sum(V_d);%check whether gross output<value-added
+test_vhm=xhm'-sum(V_hm);
+test_vr=xr'-sum(V_r);
+
+%adjustment when gross output<value-added
+[n5,m5]=size(test_vd);
+SS=S';
+for j=1:m5;
+if test_vd(1,j)<0 || test_vhm(1,j)<0 || test_vr(1,j)<0;
+SLa(:,j)=SS(:,j);
+STa(:,j)=SS(:,j);
+SDe(:,j)=SS(:,j);
+SOp(:,j)=SS(:,j);
+end;
+end;
+
+%recalculate the value-added matrix
+V=D(n1-5:n1-2,1:n*p);
+La_d=SLa(1,:).*V(1,:);
+La_hm=SLa(2,:).*V(1,:);
+La_r=SLa(3,:).*V(1,:);
+Ta_d=STa(1,:).*V(2,:);
+Ta_hm=STa(2,:).*V(2,:);
+Ta_r=STa(3,:).*V(2,:);
+De_d=SDe(1,:).*V(3,:);
+De_hm=SDe(2,:).*V(3,:);
+De_r=SDe(3,:).*V(3,:);
+Op_d=SOp(1,:).*V(4,:);
+Op_hm=SOp(2,:).*V(4,:);
+Op_r=SOp(3,:).*V(4,:);
+V_d=[La_d;Ta_d;De_d;Op_d];
+V_hm=[La_hm;Ta_hm;De_hm;Op_hm];
+V_r=[La_r;Ta_r;De_r;Op_r];
+
+
+%initial estimate for import matrix
+T=xlsread('trade.csv');%read trade data
+Ts=T(:,4:5);
+Ts(isnan(Ts))=0;
+Sm_i=C(:,33:35);%use imtermediate input share as initial estimation for import share
+Shmr=[Sm_i(:,2)./sum(Sm_i(:,2:3),2),Sm_i(:,3)./sum(Sm_i(:,2:3),2)];
+Shmr(isnan(Shmr))=0;
+Tss=[Ts(:,1),Ts(:,2).*Shmr(:,1),Ts(:,2).*Shmr(:,2)];
+Tss(:,1)=1-Tss(:,2)-Tss(:,3);
+
+%update the initial estimate for import share
+for i=1:p;
+Sm_i((i-1)*n+1:(i-1)*n+22,:)=Tss((i-1)*n+1:(i-1)*n+22,:);
+end;
+
+m_i=D(n*p+1:n*(p+1),1:n*p);%import matrix
+SIS=C(:,33:35);%imtermediate input share for domestic firm and foreign firm
+input_total=x-V_sum';%total intermediate input
+m_i_dt=input_total.*SIS(:,1);%intermediate input by industry_D
+m_i_hmt=input_total.*SIS(:,2);%intermediate input by industry_H
+m_i_rt=input_total.*SIS(:,3);%intermediate input by industry_F
+m_i_d=[];
+m_i_hm=[];
+m_i_r=[];
+for i=1:p;
+Sm_i_dt=m_i_dt((i-1)*n+1:i*n,:)/sum(m_i_dt((i-1)*n+1:i*n,:));
+Sm_i_dt(1,1)=S((i-1)*n+1,1);%using gross output share for agriculture sector
+
+if sum(m_i_hmt((i-1)*n+1:i*n,:))==0;
+Sm_i_hmt=zeros(n,1);
+else
+Sm_i_hmt=m_i_hmt((i-1)*n+1:i*n,:)/sum(m_i_hmt((i-1)*n+1:i*n,:));
+end;
+Sm_i_hmt(1,1)=S((i-1)*n+1,2);%using gross output share for agriculture sector
+
+if sum(m_i_rt((i-1)*n+1:i*n,:))==0;
+Sm_i_rt=zeros(n,1);
+else
+Sm_i_rt=m_i_rt((i-1)*n+1:i*n,:)/sum(m_i_rt((i-1)*n+1:i*n,:));
+end;
+Sm_i_rt(1,1)=S((i-1)*n+1,3);%using gross output share for agriculture sector
+
+m_i_d=[m_i_d,diag(sum(m_i(:,(i-1)*n+1:i*n),2).*Sm_i((i-1)*n+1:i*n,1))*repmat(Sm_i_dt',n,1)];%initial estimate for import matrix_D
+m_i_hm=[m_i_hm,diag(sum(m_i(:,(i-1)*n+1:i*n),2).*Sm_i((i-1)*n+1:i*n,2))*repmat(Sm_i_hmt',n,1)];%initial estimate for import matrix_H
+m_i_r=[m_i_r,diag(sum(m_i(:,(i-1)*n+1:i*n),2).*Sm_i((i-1)*n+1:i*n,3))*repmat(Sm_i_rt',n,1)];%initial estimate for import matrix_F
+end;
+
+
+%row split
+Z=[D(1:n*p,1:n*p),D(1:n*p,n*p+2:m1-3)];
+Zd=diag(SDS(:,1))*Z;
+Zhm=diag(SDS(:,2))*Z;
+Zr=diag(SDS(:,3))*Z;
+
+ZZR=[];
+for i=1:p;
+ZZR=[ZZR;Zd(n*(i-1)+1:n*i,:);Zhm(n*(i-1)+1:n*i,:);Zr(n*(i-1)+1:n*i,:)];
+end;
+
+
+input=test_vd+test_vhm+test_vr;
+Sinput_d=test_vd./input;
+Sinput_hm=test_vhm./input;
+Sinput_r=test_vr./input;
+Sinput=[Sinput_d;Sinput_hm;Sinput_r];
+Sinput(isnan(Sinput))=0;
+
+[n7,m7]=size(Sinput);
+for i=1:n7;
+for j=1:m7;
+if Sinput(i,j)<0;
+Sinput(:,j)=0;
+end;
+end;
+end;
+Sinput(1,:)=1-Sinput(2,:)-Sinput(3,:);
+
+%column split
+ZZR_d=ZZR(:,1:n*p)*diag(Sinput(1,:));
+ZZR_hm=ZZR(:,1:n*p)*diag(Sinput(2,:));
+ZZR_r=ZZR(:,1:n*p)*diag(Sinput(3,:));
+
+%IPIO_DHF
+xx=[];
+ee=[];
+VV=[];
+mm=[];
+ZZ=[];
+for i=1:p;
+xx=[xx;xd(n*(i-1)+1:n*i);xhm(n*(i-1)+1:n*i);xr(n*(i-1)+1:n*i)];
+ee=[ee;ed(n*(i-1)+1:n*i);ehm(n*(i-1)+1:n*i);er(n*(i-1)+1:n*i)];
+VV=[VV,V_d(:,n*(i-1)+1:n*i),V_hm(:,n*(i-1)+1:n*i),V_r(:,n*(i-1)+1:n*i)];
+mm=[mm,m_i_d(:,n*(i-1)+1:n*i),m_i_hm(:,n*(i-1)+1:n*i),m_i_r(:,n*(i-1)+1:n*i)];
+ZZ=[ZZ,ZZR_d(:,n*(i-1)+1:n*i),ZZR_hm(:,n*(i-1)+1:n*i),ZZR_r(:,n*(i-1)+1:n*i)];
+end;
+
+%import for final use unchanged_from IPIO
+mF=D(n*p+1:n*(p+1),n*p+2:m1-3);
+
+%intermediate use matrix and final use matrix to be updated
+ZZF=[ZZ,ZZR(:,n*p+1:(n+5)*p);mm,zeros(n,(m1-3)-(n*p+2)+1)];
+
+%constrains
+F=sum(D(1:n*p,n*p+2:m1-3));%controls for final use
+c_control=[xx'-sum(VV),F];%column controls
+MI=sum(D(n*p+1:n*(p+1),1:n*p),2);
+r_control=[xx-ee;MI];%row controls
+check=sum(c_control)/sum(r_control);%check row total equal column total
+
+%Updating GRAS
+Update=gras(ZZF,r_control,c_control');
+
+%IPIO_DHF
+Update(n*p*3+1:n*p*3+n,n*p*3+1:n*p*3+5*p)=mF;
+eee=[ee;zeros(n,1)];
+xxx=[xx;zeros(n,1)];
+DHMF1=[Update,eee,xxx];
+DHMF2=[VV;sum(VV);xx'];
+DHMF3=[DHMF2,zeros(6,(m1-3)-(n*p+2)+1+2)];
+DHMF=[DHMF1;DHMF3];
+[n10,m10]=size(DHMF);
+DHMF(n10-6-n+1:n10-6,m10)=sum(DHMF(n10-6-n+1:n10-6,:),2);%total import
+
+%less than e-5 set zero 
+[n9,m9]=size(ZZF);
+DHMF4=DHMF(1:n9,1:m9);
+DHMF4(n*p*3+1:n*p*3+n,n*p*3+1:n*p*3+5*p)=zeros(n,5*p);
+for i=1:n9;
+for j=1:m9;
+if abs(DHMF4(i,j))<0.00001;
+DHMF4(i,j)=0;
+end;
+end;
+end;
+
+%rebalance
+
+ZZF4=DHMF4(1:n9,1:m9);
+Update=gras(ZZF4,r_control,c_control');%注意控制数向量均为列向量
+
+%Final IPIO_DHF
+Update(n*p*3+1:n*p*3+n,n*p*3+1:n*p*3+5*p)=mF;
+eee=[ee;zeros(n,1)];
+xxx=[xx;zeros(n,1)];
+DHMF1=[Update,eee,xxx];
+DHMF2=[VV;sum(VV);xx'];
+DHMF3=[DHMF2,zeros(6,(m1-3)-(n*p+2)+1+2)];
+DHMF=[DHMF1;DHMF3];
+[n10,m10]=size(DHMF);
+DHMF(n10-6-n+1:n10-6,m10)=sum(DHMF(n10-6-n+1:n10-6,:),2);%total import
+
+
+%Write data to excel file 
+xlswrite('IOT.xlsx',DHMF);
+
+%program ends
